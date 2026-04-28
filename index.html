@@ -1,0 +1,1059 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Expense Ledger — Live from Google Sheets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #f6f1e7;
+    --bg-grain: #efe7d4;
+    --ink: #1c1a15;
+    --ink-soft: #5a5345;
+    --line: #d8cdb6;
+    --card: #fffdf7;
+    --pos: #2f5d3a;
+    --pos-soft: #e6efdf;
+    --neg: #a3422c;
+    --neg-soft: #f5e0d6;
+    --accent: #c64a1f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background: var(--bg); color: var(--ink); font-family: 'Geist', system-ui, sans-serif; -webkit-font-smoothing: antialiased;}
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image: radial-gradient(rgba(28,26,21,0.05) 1px, transparent 1px);
+    background-size: 3px 3px; opacity:.5;
+  }
+  .wrap{max-width: 1280px; margin: 0 auto; padding: 56px 32px 96px; position:relative; z-index:1;}
+  @media (max-width: 640px){ .wrap{padding: 32px 18px 64px;} }
+
+  /* Header */
+  .topbar{display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; margin-bottom: 48px;}
+  .brand{display:flex; align-items:baseline; gap:14px;}
+  .brand-mark{
+    width:42px; height:42px; border-radius:50%;
+    background: var(--ink); color: var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Instrument Serif', serif; font-size: 26px; line-height:1;
+    font-style: italic;
+  }
+  .brand-name{font-family:'Instrument Serif', serif; font-size: 28px; letter-spacing:-.01em;}
+  .brand-name em{font-style:italic; color: var(--accent);}
+  .live{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size: 12px; font-family:'JetBrains Mono', monospace;
+    text-transform:uppercase; letter-spacing:.12em; color: var(--ink-soft);
+    padding: 8px 14px; border:1px solid var(--line); border-radius:999px; background: var(--card);
+  }
+  .live .dot{width:7px; height:7px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 4px rgba(34,197,94,.18); animation: pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+  /* Hero */
+  .hero{display:grid; grid-template-columns: 1.5fr 1fr; gap: 56px; align-items:end; padding-bottom: 48px; border-bottom: 1px solid var(--line); margin-bottom: 48px;}
+  @media (max-width: 900px){ .hero{grid-template-columns: 1fr; gap: 32px;} }
+  h1{
+    font-family:'Instrument Serif', serif; font-weight: 400;
+    font-size: clamp(48px, 8vw, 96px); line-height: 0.95; letter-spacing: -0.025em;
+  }
+  h1 em{font-style:italic; color: var(--accent);}
+  .lede{font-size: 16px; color: var(--ink-soft); max-width: 38ch; line-height: 1.55;}
+  .lede a{color: var(--ink); text-decoration: underline; text-underline-offset: 4px;}
+
+  /* Stat strip */
+  .stats{display:grid; grid-template-columns: repeat(4, 1fr); gap: 0; border:1px solid var(--line); border-radius: 18px; overflow:hidden; background: var(--card); margin-bottom: 56px;}
+  @media (max-width: 760px){ .stats{grid-template-columns: repeat(2, 1fr);} }
+  .stat{padding: 24px 28px; border-right: 1px solid var(--line);}
+  .stat:last-child{border-right:none;}
+  @media (max-width: 760px){ .stat:nth-child(2){border-right:none;} .stat:nth-child(1),.stat:nth-child(2){border-bottom:1px solid var(--line);} }
+  .stat-k{font-size:11px; font-family:'JetBrains Mono', monospace; text-transform:uppercase; letter-spacing:.14em; color: var(--ink-soft); margin-bottom:10px;}
+  .stat-v{font-family:'Instrument Serif', serif; font-size: 38px; line-height:1; letter-spacing:-.01em;}
+  .stat-v.pos{color: var(--pos);} .stat-v.neg{color: var(--neg);}
+  .stat-sub{font-size:12px; font-family:'JetBrains Mono', monospace; color: var(--ink-soft); margin-top:8px;}
+
+  /* Section heading */
+  .sec-head{display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin: 0 0 22px;}
+  .sec-head h2{font-family:'Instrument Serif', serif; font-weight:400; font-size: 32px; letter-spacing:-.01em;}
+  .sec-head .meta{font-size:12px; font-family:'JetBrains Mono', monospace; text-transform:uppercase; letter-spacing:.14em; color: var(--ink-soft);}
+
+  /* Person grid */
+  .people{display:grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 64px;}
+  @media (max-width: 1000px){ .people{grid-template-columns: repeat(3, 1fr);} }
+  @media (max-width: 600px){ .people{grid-template-columns: repeat(2, 1fr);} }
+  .person{
+    background: var(--card); border:1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+    transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+    position: relative; overflow:hidden;
+  }
+  .person:hover{transform: translateY(-2px); box-shadow: 0 10px 30px rgba(28,26,21,0.08); border-color: var(--ink);}
+  .person .name{font-family:'JetBrains Mono', monospace; font-size:12px; color: var(--ink-soft); letter-spacing:.1em;}
+  .person .net{font-family:'Instrument Serif', serif; font-size: 28px; line-height:1.05; margin-top:6px; letter-spacing:-.01em;}
+  .person .row{display:flex; justify-content:space-between; gap:8px; font-size:11px; font-family:'JetBrains Mono', monospace; color: var(--ink-soft); margin-top:10px;}
+  .person .row span:last-child{color: var(--ink);}
+  .person.pos{background: linear-gradient(180deg, var(--pos-soft) 0%, var(--card) 60%);}
+  .person.neg{background: linear-gradient(180deg, var(--neg-soft) 0%, var(--card) 60%);}
+  .person.pos .net{color: var(--pos);}
+  .person.neg .net{color: var(--neg);}
+  .person .tag{position:absolute; top:14px; right:14px; font-size:10px; font-family:'JetBrains Mono', monospace; text-transform:uppercase; letter-spacing:.1em; padding: 3px 8px; border-radius: 999px; background: var(--ink); color: var(--bg);}
+  .person.pos .tag{background: var(--pos);}
+  .person.neg .tag{background: var(--neg);}
+
+  /* Toolbar */
+  .toolbar{display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom: 18px;}
+  .search{flex: 1 1 280px; position: relative;}
+  .search input{
+    width:100%; padding: 14px 16px 14px 44px;
+    background: var(--card); border:1px solid var(--line); border-radius: 12px;
+    font-family:'Geist', sans-serif; font-size: 15px; color: var(--ink);
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .search input:focus{outline:none; border-color: var(--ink); box-shadow: 0 0 0 4px rgba(28,26,21,0.06);}
+  .search svg{position:absolute; left:14px; top:50%; transform:translateY(-50%); color: var(--ink-soft);}
+  .filter{
+    position:relative;
+  }
+  .filter select{
+    appearance:none; -webkit-appearance:none;
+    padding: 14px 44px 14px 18px;
+    background: var(--card); border:1px solid var(--line); border-radius:12px;
+    font-family:'Geist', sans-serif; font-size: 14px; color: var(--ink);
+    cursor: pointer;
+  }
+  .filter::after{content:""; position:absolute; right:18px; top:50%; transform:translateY(-30%); width:8px; height:8px; border-right:1.5px solid var(--ink); border-bottom:1.5px solid var(--ink); transform:translateY(-60%) rotate(45deg); pointer-events:none;}
+  .reset{
+    padding: 14px 18px; background: transparent; border:1px solid var(--line); border-radius:12px;
+    font-family:'Geist', sans-serif; font-size: 14px; cursor:pointer; color: var(--ink); transition: all .2s ease;
+  }
+  .reset:hover{background: var(--ink); color: var(--bg); border-color: var(--ink);}
+
+  /* Table */
+  .table-wrap{background: var(--card); border:1px solid var(--line); border-radius: 18px; overflow: hidden;}
+  .table-scroll{overflow-x: auto;}
+  table{width:100%; border-collapse: collapse; min-width: 720px;}
+  thead th{
+    text-align:left; padding: 16px 18px; font-size: 11px; font-family:'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing:.14em; color: var(--ink-soft);
+    border-bottom: 1px solid var(--line); background: var(--bg-grain); position: sticky; top:0;
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  thead th:hover{color: var(--ink);}
+  thead th .sort{opacity:.4; margin-left:6px; font-size:10px;}
+  thead th.active .sort{opacity:1; color: var(--accent);}
+  tbody td{padding: 16px 18px; font-size: 14px; border-bottom: 1px solid var(--line); vertical-align: top;}
+  tbody tr:last-child td{border-bottom: none;}
+  tbody tr{transition: background .15s ease;}
+  tbody tr:hover{background: var(--bg-grain);}
+  td.num{font-family:'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; text-align:right;}
+  td.num.pos{color: var(--pos);}
+  td.num.neg{color: var(--neg);}
+  td.date{white-space: nowrap; color: var(--ink-soft); font-size: 13px;}
+  td.item{font-weight:500;}
+  td.desc{color: var(--ink-soft); max-width: 320px;}
+  .empty{padding: 64px 24px; text-align:center; color: var(--ink-soft);}
+  .empty h3{font-family:'Instrument Serif', serif; font-weight:400; font-size:24px; color: var(--ink); margin-bottom:6px;}
+
+  /* Loading */
+  .loader{display:flex; align-items:center; justify-content:center; padding: 80px 0; flex-direction:column; gap:14px; color: var(--ink-soft);}
+  .loader .bar{width: 220px; height: 2px; background: var(--line); overflow:hidden; border-radius: 4px;}
+  .loader .bar::after{content:""; display:block; width: 40%; height:100%; background: var(--ink); animation: slide 1.2s ease-in-out infinite;}
+  @keyframes slide{0%{transform:translateX(-100%);} 100%{transform:translateX(350%);} }
+
+  .footer{margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--line); display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:12px; font-family:'JetBrains Mono', monospace; color: var(--ink-soft); text-transform:uppercase; letter-spacing:.12em;}
+  .footer a{color: var(--ink); text-decoration:none; border-bottom: 1px solid var(--line);}
+  .footer a:hover{border-color: var(--ink);}
+
+  /* fade-in */
+  .fade-in{animation: fadeUp .6s ease-out both;}
+  .fade-in.d1{animation-delay:.05s} .fade-in.d2{animation-delay:.12s} .fade-in.d3{animation-delay:.2s} .fade-in.d4{animation-delay:.28s}
+  @keyframes fadeUp{from{opacity:0; transform: translateY(12px);} to{opacity:1; transform:none;}}
+
+  /* Selection */
+  ::selection{background: var(--ink); color: var(--bg);}
+
+  /* Settle-up panel */
+  .settle{
+    background: var(--card); border:1px solid var(--line); border-radius: 18px;
+    padding: 28px 32px; margin-bottom: 64px;
+  }
+  .settle-head{display:flex; justify-content:space-between; align-items:baseline; gap:16px; flex-wrap:wrap; margin-bottom:18px;}
+  .settle-head h2{font-family:'Instrument Serif',serif; font-weight:400; font-size:32px; letter-spacing:-.01em;}
+  .settle-head h2 em{font-style:italic; color:var(--accent);}
+  .settle-status{
+    display:inline-flex; align-items:center; gap:10px;
+    font-family:'JetBrains Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:.14em;
+    padding: 8px 14px; border-radius:999px; border:1px solid var(--line); background: var(--bg-grain);
+  }
+  .settle-status.settled{background: var(--pos-soft); color: var(--pos); border-color: var(--pos);}
+  .settle-status.pending{background: var(--neg-soft); color: var(--neg); border-color: var(--neg);}
+  .settle-status .pip{width:7px; height:7px; border-radius:50%; background:currentColor;}
+  .transfers{display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;}
+  .transfer{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding: 14px 16px; border:1px solid var(--line); border-radius: 12px; background: var(--bg-grain);
+    transition: transform .2s ease, border-color .2s ease;
+  }
+  .transfer:hover{transform: translateY(-1px); border-color: var(--ink);}
+  .transfer .who{display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono', monospace; font-size:13px;}
+  .transfer .who .arrow{color: var(--accent); font-size: 16px;}
+  .transfer .amount{font-family:'Instrument Serif', serif; font-size:22px; color: var(--ink);}
+  .settle-empty{padding: 24px 0; color: var(--ink-soft); font-size:14px;}
+
+  /* Charts */
+  .charts{display:grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 64px;}
+  @media (max-width: 900px){ .charts{grid-template-columns: 1fr;} }
+  .chart-card{background: var(--card); border:1px solid var(--line); border-radius:18px; padding: 24px;}
+  .chart-card h3{font-family:'Instrument Serif', serif; font-weight:400; font-size:22px; margin-bottom:4px; letter-spacing:-.01em;}
+  .chart-card .sub{font-family:'JetBrains Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:.14em; color: var(--ink-soft); margin-bottom:18px;}
+  .chart-box{position:relative; height: 260px;}
+  @media (max-width: 600px){ .chart-box{height: 220px;} }
+
+  /* Export button */
+  .export-btn{
+    padding: 14px 18px; background: var(--ink); color: var(--bg);
+    border: 1px solid var(--ink); border-radius:12px;
+    font-family:'Geist', sans-serif; font-size: 14px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px; transition: opacity .2s ease;
+  }
+  .export-btn:hover{opacity:.85;}
+
+  /* Icon buttons (settings, add, row actions) */
+  .icon-btn{
+    background: var(--card); border:1px solid var(--line); border-radius: 999px;
+    width: 38px; height: 38px; display:inline-flex; align-items:center; justify-content:center;
+    cursor: pointer; color: var(--ink); transition: all .2s ease;
+  }
+  .icon-btn:hover{background: var(--ink); color: var(--bg); border-color: var(--ink);}
+  .icon-btn.warn:hover{background: var(--neg); color: var(--bg); border-color: var(--neg);}
+  .topbar-actions{display:flex; gap:10px; align-items:center;}
+
+  .add-btn{
+    padding: 10px 18px; background: var(--accent); color: white;
+    border: 1px solid var(--accent); border-radius:10px;
+    font-family:'Geist', sans-serif; font-size: 14px; font-weight: 500; cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px; transition: opacity .2s ease, transform .15s ease;
+  }
+  .add-btn:hover{opacity:.9; transform: translateY(-1px);}
+  .add-btn:disabled{opacity: .4; cursor: not-allowed; transform: none;}
+
+  /* Row action cell */
+  td.actions{white-space:nowrap; text-align:right;}
+  .row-icon{
+    background: transparent; border:none; cursor: pointer; padding: 6px;
+    color: var(--ink-soft); border-radius: 6px; transition: all .15s ease;
+  }
+  .row-icon:hover{color: var(--ink); background: var(--bg-grain);}
+  .row-icon.del:hover{color: var(--neg);}
+
+  /* Modal */
+  .modal-backdrop{
+    position: fixed; inset: 0; background: rgba(28,26,21,0.45);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 5vh 16px; z-index: 100; overflow-y: auto;
+    animation: fadeIn .2s ease;
+  }
+  .modal-backdrop.open{display:flex;}
+  @keyframes fadeIn{from{opacity:0} to{opacity:1}}
+  .modal{
+    background: var(--card); border-radius: 18px; border: 1px solid var(--line);
+    width: 100%; max-width: 720px; padding: 32px; position: relative;
+    box-shadow: 0 30px 80px rgba(28,26,21,0.25);
+    animation: slideUp .3s ease;
+  }
+  .modal.compact{max-width: 480px;}
+  @keyframes slideUp{from{transform: translateY(20px); opacity:0} to{transform:none; opacity:1}}
+  .modal-head{display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin-bottom: 24px;}
+  .modal-head h2{font-family:'Instrument Serif', serif; font-weight: 400; font-size: 28px; letter-spacing:-.01em;}
+  .modal-head h2 em{font-style:italic; color: var(--accent);}
+  .modal-close{background:transparent; border:none; cursor:pointer; font-size: 22px; color: var(--ink-soft); width: 32px; height: 32px; border-radius: 50%; display:flex; align-items:center; justify-content:center;}
+  .modal-close:hover{background: var(--bg-grain); color: var(--ink);}
+  .modal label{display:block; font-size: 11px; font-family:'JetBrains Mono', monospace; text-transform:uppercase; letter-spacing:.14em; color: var(--ink-soft); margin-bottom: 6px;}
+  .modal input[type=text], .modal input[type=date], .modal input[type=number], .modal input[type=password], .modal input[type=url]{
+    width: 100%; padding: 12px 14px; background: var(--card);
+    border:1px solid var(--line); border-radius: 10px;
+    font-family:'Geist', sans-serif; font-size: 14px; color: var(--ink);
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .modal input:focus{outline:none; border-color: var(--ink); box-shadow: 0 0 0 4px rgba(28,26,21,0.06);}
+  .modal .field{margin-bottom: 18px;}
+  .row3{display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;}
+  @media (max-width: 600px){ .row3{grid-template-columns: 1fr;} }
+
+  .members-grid{
+    display:grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    margin-top: 8px; padding-top: 18px; border-top: 1px dashed var(--line);
+  }
+  @media (max-width: 720px){ .members-grid{grid-template-columns: repeat(3, 1fr);} }
+  @media (max-width: 460px){ .members-grid{grid-template-columns: repeat(2, 1fr);} }
+  .mcell{border:1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--bg-grain);}
+  .mcell .mname{font-family:'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-soft); margin-bottom: 6px; letter-spacing:.08em;}
+  .mcell input{
+    width: 100%; padding: 6px 8px; font-size: 13px;
+    border:1px solid transparent; border-radius: 6px; background: var(--card);
+    font-family:'JetBrains Mono', monospace; color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .mcell input:focus{outline:none; border-color: var(--ink);}
+  .mcell input.cr{border-left: 3px solid var(--pos);}
+  .mcell input.dr{border-left: 3px solid var(--neg);}
+
+  .modal-actions{display:flex; gap: 10px; justify-content: flex-end; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line);}
+  .btn{padding: 12px 22px; border-radius: 10px; cursor: pointer; font-family:'Geist', sans-serif; font-size: 14px; border:1px solid var(--line); background: var(--card); color: var(--ink); transition: all .2s ease;}
+  .btn:hover{background: var(--bg-grain);}
+  .btn.primary{background: var(--ink); color: var(--bg); border-color: var(--ink);}
+  .btn.primary:hover{opacity: .85; background: var(--ink);}
+  .btn.danger{background: var(--neg); color: white; border-color: var(--neg);}
+  .btn.danger:hover{opacity: .9;}
+  .btn:disabled{opacity:.5; cursor: not-allowed;}
+
+  /* Toast */
+  .toast-stack{position: fixed; bottom: 24px; right: 24px; display:flex; flex-direction:column; gap: 8px; z-index: 200; pointer-events: none;}
+  .toast{
+    background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; box-shadow: 0 10px 30px rgba(28,26,21,.2);
+    animation: toastIn .3s ease; max-width: 320px;
+  }
+  .toast.ok{background: var(--pos);}
+  .toast.err{background: var(--neg);}
+  @keyframes toastIn{from{transform: translateX(20px); opacity:0;} to{transform:none; opacity:1;}}
+
+  /* Helper banner when CRUD not yet configured */
+  .config-banner{
+    background: var(--bg-grain); border:1px dashed var(--line); border-radius:12px;
+    padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: var(--ink-soft);
+    display:flex; gap: 12px; align-items: center;
+  }
+  .config-banner button{
+    background: var(--ink); color: var(--bg); border:none; padding: 6px 14px;
+    border-radius: 8px; cursor: pointer; font-size: 12px; margin-left: auto;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar fade-in">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">₹</div>
+      <div class="brand-name">Expense <em>Ledger</em></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="settings-btn" data-testid="settings-btn" title="Configure write-back (Apps Script URL)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <div class="live" data-testid="live-indicator">
+        <span class="dot"></span>
+        <span id="live-status">Syncing live</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero fade-in d1">
+    <div>
+      <h1>A clear view of <em>shared</em> spend, settled honestly.</h1>
+    </div>
+    <p class="lede">
+      Live ledger streamed directly from a <a href="https://docs.google.com/spreadsheets/d/1fd2hkvpKl4ozg3vd3O6f5OIJh4ZaFMaTZdzaHRzGyOA/edit" target="_blank" rel="noopener">Google Sheet</a>. Track every expense, see who paid and who owes, and reconcile balances across fifteen members at a glance.
+    </p>
+  </section>
+
+  <section class="stats fade-in d2" data-testid="summary-stats">
+    <div class="stat"><div class="stat-k">Total Credit</div><div class="stat-v pos" id="stat-credit" data-testid="stat-credit">—</div><div class="stat-sub">Amount paid in</div></div>
+    <div class="stat"><div class="stat-k">Total Debit</div><div class="stat-v neg" id="stat-debit" data-testid="stat-debit">—</div><div class="stat-sub">Amount paid out</div></div>
+    <div class="stat"><div class="stat-k">Net Balance</div><div class="stat-v" id="stat-net" data-testid="stat-net">—</div><div class="stat-sub" id="stat-net-sub">Difference</div></div>
+    <div class="stat"><div class="stat-k">Entries</div><div class="stat-v" id="stat-count" data-testid="stat-count">—</div><div class="stat-sub" id="stat-range">Recorded transactions</div></div>
+  </section>
+
+  <section class="fade-in d3">
+    <div class="settle" data-testid="settle-panel">
+      <div class="settle-head">
+        <div>
+          <h2>Settle <em>up</em></h2>
+        </div>
+        <div class="settle-status" id="settle-status" data-testid="settle-status">
+          <span class="pip"></span><span id="settle-status-text">—</span>
+        </div>
+      </div>
+      <div id="transfers" class="transfers"></div>
+      <div id="settle-empty" class="settle-empty" style="display:none;">All members are even — nothing to settle.</div>
+    </div>
+  </section>
+
+  <section class="fade-in d3">
+    <div class="sec-head">
+      <h2>Member <em style="font-style:italic;color:var(--accent)">balances</em></h2>
+      <div class="meta">X1 — X15 · net = credit − debit</div>
+    </div>
+    <div class="people" id="people-grid" data-testid="people-grid"></div>
+  </section>
+
+  <section class="fade-in d4">
+    <div class="sec-head">
+      <h2>Spend <em style="font-style:italic;color:var(--accent)">at a glance</em></h2>
+      <div class="meta">visual breakdown</div>
+    </div>
+    <div class="charts">
+      <div class="chart-card">
+        <h3>Daily debit trend</h3>
+        <div class="sub">total debit per day</div>
+        <div class="chart-box"><canvas id="chart-trend" data-testid="chart-trend"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Member net balance</h3>
+        <div class="sub">credit − debit, X1 → X15</div>
+        <div class="chart-box"><canvas id="chart-net" data-testid="chart-net"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="fade-in d4">
+    <div class="sec-head">
+      <h2>Transactions</h2>
+      <div style="display:flex; gap:14px; align-items:center;">
+        <span class="meta" id="result-count">— rows</span>
+        <button class="add-btn" id="add-btn" data-testid="add-btn" disabled title="Configure Settings to enable write-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add entry
+        </button>
+      </div>
+    </div>
+
+    <div id="config-banner" class="config-banner" data-testid="config-banner" style="display:none;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>Read-only mode. Configure your Apps Script URL to add, edit and delete entries.</span>
+      <button id="banner-config-btn" data-testid="banner-config-btn">Configure</button>
+    </div>
+
+    <div class="toolbar">
+      <div class="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search" placeholder="Search items, descriptions, dates…" data-testid="search-input" />
+      </div>
+      <div class="filter">
+        <select id="member-filter" data-testid="member-filter">
+          <option value="">All members</option>
+        </select>
+      </div>
+      <div class="filter">
+        <select id="type-filter" data-testid="type-filter">
+          <option value="">Credit & Debit</option>
+          <option value="credit">Credit only</option>
+          <option value="debit">Debit only</option>
+        </select>
+      </div>
+      <div class="filter">
+        <select id="month-filter" data-testid="month-filter">
+          <option value="">All months</option>
+        </select>
+      </div>
+      <button class="reset" id="reset-btn" data-testid="reset-btn">Reset</button>
+      <button class="export-btn" id="export-btn" data-testid="export-btn" title="Download filtered rows as CSV">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+      </button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table data-testid="transactions-table">
+          <thead>
+            <tr id="table-head"></tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div id="empty-state" class="empty" style="display:none;">
+        <h3>Nothing matches</h3>
+        <p>Try a different search term or reset the filters.</p>
+      </div>
+      <div id="loader" class="loader">
+        <div class="bar"></div>
+        <span style="font-family:'JetBrains Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:.14em;">Fetching ledger…</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>Auto-refreshes every 60s</div>
+    <div>Source: <a href="https://docs.google.com/spreadsheets/d/1fd2hkvpKl4ozg3vd3O6f5OIJh4ZaFMaTZdzaHRzGyOA/edit" target="_blank" rel="noopener">Google Sheet ↗</a></div>
+  </footer>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="settings-modal" data-testid="settings-modal">
+  <div class="modal compact">
+    <div class="modal-head">
+      <h2>Settings <em>· write-back</em></h2>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <p style="font-size:13px; color:var(--ink-soft); margin-bottom:18px; line-height:1.5;">
+      Paste the Apps Script Web App URL and the secret you set in <code style="background:var(--bg-grain); padding:2px 6px; border-radius:4px;">Code.gs</code>. See <code>/app/apps-script/Code.gs</code> for the deploy guide.
+    </p>
+    <div class="field">
+      <label for="cfg-url">Apps Script URL</label>
+      <input type="url" id="cfg-url" data-testid="cfg-url" placeholder="https://script.google.com/macros/s/.../exec" />
+    </div>
+    <div class="field">
+      <label for="cfg-secret">Secret</label>
+      <input type="password" id="cfg-secret" data-testid="cfg-secret" placeholder="The SECRET value from Code.gs" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="cfg-test" data-testid="cfg-test">Test connection</button>
+      <button class="btn primary" id="cfg-save" data-testid="cfg-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Entry modal (add / edit) -->
+<div class="modal-backdrop" id="entry-modal" data-testid="entry-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="entry-title">Add <em>entry</em></h2>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="entry-form" autocomplete="off">
+      <input type="hidden" id="entry-sr" />
+      <div class="row3">
+        <div class="field">
+          <label for="entry-date">Date</label>
+          <input type="date" id="entry-date" data-testid="entry-date" required />
+        </div>
+        <div class="field">
+          <label for="entry-item">Item name</label>
+          <input type="text" id="entry-item" data-testid="entry-item" placeholder="e.g. Groceries" />
+        </div>
+        <div class="field">
+          <label for="entry-desc">Description</label>
+          <input type="text" id="entry-desc" data-testid="entry-desc" placeholder="Optional notes" />
+        </div>
+      </div>
+      <label style="margin-top:6px;">Per-member amounts (Credit · Debit)</label>
+      <div class="members-grid" id="members-inputs"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary" id="entry-submit" data-testid="entry-submit">Save entry</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm delete modal -->
+<div class="modal-backdrop" id="confirm-modal" data-testid="confirm-modal">
+  <div class="modal compact">
+    <div class="modal-head">
+      <h2>Delete <em>entry</em>?</h2>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <p style="font-size:14px; color:var(--ink-soft); margin-bottom: 8px;">
+      Row <strong id="confirm-sr" style="color:var(--ink); font-family:'JetBrains Mono',monospace;"></strong> will be cleared from the sheet. This cannot be undone.
+    </p>
+    <div class="modal-actions">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="button" class="btn danger" id="confirm-delete" data-testid="confirm-delete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+<script>
+  // ----- Config -----
+  const SHEET_ID = '1fd2hkvpKl4ozg3vd3O6f5OIJh4ZaFMaTZdzaHRzGyOA';
+  const GID = '1298292385';
+  const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+  const REFRESH_MS = 60000;
+  const MEMBERS = Array.from({length:15}, (_,i)=>`X${i+1}`);
+
+  // ----- State -----
+  let allRows = [];           // all entries from sheet (only those with date or item)
+  let totals = { credit:0, debit:0 };
+  let perMember = {};         // {X1:{credit,debit,net}}
+  let txns = [];              // flattened: each member’s credit/debit per row
+  let sortKey = 'sr';
+  let sortDir = 'asc';
+
+  // ----- CSV parser (handles quoted fields with commas) -----
+  /**
+   * Parse a CSV string into a 2D array of strings.
+   * Handles quoted fields, escaped quotes ("") and CR/LF line endings.
+   * @param {string} text
+   * @returns {string[][]}
+   */
+  function parseCSV(text){
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++){
+      const c = text[i];
+      if (inQuotes){
+        if (c === '"' && text[i+1] === '"'){ field += '"'; i++; }
+        else if (c === '"'){ inQuotes = false; }
+        else { field += c; }
+      } else {
+        if (c === '"'){ inQuotes = true; }
+        else if (c === ','){ row.push(field); field = ''; }
+        else if (c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+        else if (c === '\r'){ /* ignore */ }
+        else { field += c; }
+      }
+    }
+    if (field.length || row.length){ row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  /** @param {*} v @returns {number} */
+  function num(v){ if (v===undefined||v===null) return 0; const n = parseFloat(String(v).replace(/,/g,'').trim()); return isNaN(n) ? 0 : n; }
+  /** @param {number} n @returns {string} */
+  function fmt(n){ const abs = Math.abs(n); const s = abs.toLocaleString('en-IN', {maximumFractionDigits:2}); return (n<0?'−':'') + '₹' + s; }
+  /** @param {number} n @returns {string} */
+  function fmtPlain(n){ return Math.abs(n).toLocaleString('en-IN', {maximumFractionDigits:2}); }
+
+  // ----- Fetch & process -----
+  /**
+   * Fetches the sheet CSV, parses it, processes it and updates the UI.
+   * Updates the live indicator on success / failure.
+   * @returns {Promise<void>}
+   */
+  async function load(){
+    try{
+      const res = await fetch(CSV_URL + '&_=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const rows = parseCSV(text);
+      process(rows);
+      document.getElementById('loader').style.display = 'none';
+      document.getElementById('live-status').textContent = 'Live · updated ' + new Date().toLocaleTimeString();
+    } catch(err){
+      document.getElementById('loader').innerHTML = '<div style="color:var(--neg); font-family:\'JetBrains Mono\',monospace; font-size:13px;">Could not load sheet — '+ err.message +'</div>';
+      document.getElementById('live-status').textContent = 'Offline';
+    }
+  }
+
+  /**
+   * Reset module-level aggregate state before re-processing a fresh CSV pull.
+   * @returns {void}
+   */
+  function resetAggregates(){
+    totals = { credit: 0, debit: 0 };
+    perMember = {};
+    MEMBERS.forEach(m => perMember[m] = { credit:0, debit:0, net:0 });
+    allRows = [];
+  }
+
+  /**
+   * Convert one CSV row into a normalized transaction record and
+   * fold its values into the per-member and grand totals.
+   * @param {string[]} r raw CSV row
+   * @param {(name:string)=>number} col header→index lookup
+   * @returns {{sr:string,date:string,dateObj:?Date,monthKey:string,monthLabel:string,item:string,desc:string,totC:number,totD:number,members:Record<string,{credit:number,debit:number}>}}
+   */
+  function parseRow(r, col){
+    const sr   = r[col('Sr No.')] || '';
+    const date = r[col('Date')] || '';
+    const item = r[col('Item Name')] || '';
+    const desc = r[col('Item Description')] || '';
+    const totC = num(r[col('Total Credit')]);
+    const totD = num(r[col('Total Debit')]);
+
+    const dateObj = date ? new Date(date) : null;
+    const valid = dateObj && !isNaN(dateObj.getTime());
+    const monthKey   = valid ? `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}` : '';
+    const monthLabel = valid ? dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' }) : '';
+
+    const memberData = {};
+    MEMBERS.forEach(m => {
+      const c = num(r[col(`${m}-Credit`)]);
+      const d = num(r[col(`${m}-Debit`)]);
+      memberData[m] = { credit: c, debit: d };
+      perMember[m].credit += c;
+      perMember[m].debit  += d;
+    });
+
+    totals.credit += totC;
+    totals.debit  += totD;
+    return { sr, date, dateObj, monthKey, monthLabel, item, desc, totC, totD, members: memberData };
+  }
+
+  /**
+   * Drop trailing blank rows where date, item and description are all empty.
+   * @param {string[][]} rows raw rows after the header
+   * @returns {string[][]}
+   */
+  function keepNonEmpty(rows){
+    return rows.filter(r => r.length > 1 && (r[1] || r[2] || r[3]));
+  }
+
+  /**
+   * Top-level orchestrator: takes parsed CSV rows and refreshes the UI.
+   * @param {string[][]} rows
+   * @returns {void}
+   */
+  function process(rows){
+    if (!rows.length) return;
+    const header = rows[0];
+    const col = name => header.indexOf(name);
+    const data = keepNonEmpty(rows.slice(1));
+
+    resetAggregates();
+    data.forEach(r => allRows.push(parseRow(r, col)));
+    MEMBERS.forEach(m => perMember[m].net = perMember[m].credit - perMember[m].debit);
+
+    renderStats();
+    renderPeople();
+    populateMemberFilter();
+    populateMonthFilter();
+    renderSettleUp();
+    renderCharts();
+    renderTable();
+  }
+
+  /**
+   * Update the four headline stat cards (credit, debit, net, count + range).
+   * @returns {void}
+   */
+  function renderStats(){
+    document.getElementById('stat-credit').textContent = fmt(totals.credit);
+    document.getElementById('stat-debit').textContent = fmt(totals.debit);
+    const net = totals.credit - totals.debit;
+    const netEl = document.getElementById('stat-net');
+    netEl.textContent = fmt(net);
+    netEl.classList.remove('pos','neg');
+    if (net > 0) netEl.classList.add('pos');
+    else if (net < 0) netEl.classList.add('neg');
+    document.getElementById('stat-net-sub').textContent = net === 0 ? 'Books balanced' : (net > 0 ? 'Surplus' : 'Deficit');
+    document.getElementById('stat-count').textContent = allRows.length;
+
+    const dates = allRows.map(r => r.date).filter(Boolean);
+    if (dates.length){
+      const first = dates[0].split(',').slice(1).join(',').trim();
+      const last  = dates[dates.length-1].split(',').slice(1).join(',').trim();
+      document.getElementById('stat-range').textContent = first === last ? first : `${first} → ${last}`;
+    }
+  }
+
+  /**
+   * Render the X1–X15 member balance grid with gets/owes/even tags.
+   * @returns {void}
+   */
+  function renderPeople(){
+    const grid = document.getElementById('people-grid');
+    grid.innerHTML = MEMBERS.map(m => {
+      const p = perMember[m];
+      const cls = p.net > 0 ? 'pos' : (p.net < 0 ? 'neg' : '');
+      const tag = p.net > 0 ? 'gets' : (p.net < 0 ? 'owes' : 'even');
+      return `
+        <div class="person ${cls}" data-testid="person-${m}">
+          <div class="tag">${tag}</div>
+          <div class="name">${m}</div>
+          <div class="net">${fmt(p.net)}</div>
+          <div class="row"><span>credit</span><span>${fmtPlain(p.credit)}</span></div>
+          <div class="row"><span>debit</span><span>${fmtPlain(p.debit)}</span></div>
+        </div>`;
+    }).join('');
+  }
+
+  /**
+   * One-time population of the member-filter <select> with X1..X15.
+   * @returns {void}
+   */
+  function populateMemberFilter(){
+    const sel = document.getElementById('member-filter');
+    if (sel.options.length > 1) return;
+    MEMBERS.forEach(m => {
+      const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o);
+    });
+  }
+
+  /**
+   * Populate the month-filter <select> from unique months in allRows.
+   * Preserves currently-selected month if still valid.
+   * @returns {void}
+   */
+  function populateMonthFilter(){
+    const sel = document.getElementById('month-filter');
+    const current = sel.value;
+    const seen = new Map(); // key -> label
+    allRows.forEach(r => { if (r.monthKey && !seen.has(r.monthKey)) seen.set(r.monthKey, r.monthLabel); });
+    const sorted = [...seen.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+    sel.innerHTML = '<option value="">All months</option>' +
+      sorted.map(([k,l]) => `<option value="${k}">${l}</option>`).join('');
+    if (current && seen.has(current)) sel.value = current;
+  }
+
+  /**
+   * Greedy minimum-transfers settlement: pair largest creditor with
+   * largest debtor, transfer min(|net|), repeat until both sides empty.
+   * @returns {Array<{from:string,to:string,amount:number}>}
+   */
+  function computeSettlements(){
+    const eps = 0.005;
+    const creditors = MEMBERS
+      .map(m => ({ id: m, amt: perMember[m].net }))
+      .filter(x => x.amt > eps)
+      .sort((a,b) => b.amt - a.amt);
+    const debtors = MEMBERS
+      .map(m => ({ id: m, amt: -perMember[m].net }))
+      .filter(x => x.amt > eps)
+      .sort((a,b) => b.amt - a.amt);
+
+    const out = [];
+    let i = 0, j = 0;
+    while (i < creditors.length && j < debtors.length){
+      const c = creditors[i], d = debtors[j];
+      const t = Math.min(c.amt, d.amt);
+      out.push({ from: d.id, to: c.id, amount: Math.round(t * 100) / 100 });
+      c.amt -= t; d.amt -= t;
+      if (c.amt < eps) i++;
+      if (d.amt < eps) j++;
+    }
+    return out;
+  }
+
+  /**
+   * Render the settle-up panel: status pill + transfer cards.
+   * @returns {void}
+   */
+  function renderSettleUp(){
+    const transfers = computeSettlements();
+    const statusEl  = document.getElementById('settle-status');
+    const statusTxt = document.getElementById('settle-status-text');
+    const wrap      = document.getElementById('transfers');
+    const empty     = document.getElementById('settle-empty');
+
+    statusEl.classList.remove('settled', 'pending');
+    if (!transfers.length){
+      statusEl.classList.add('settled');
+      statusTxt.textContent = 'All settled';
+      wrap.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    statusEl.classList.add('pending');
+    statusTxt.textContent = `${transfers.length} transfer${transfers.length===1?'':'s'} pending`;
+    empty.style.display = 'none';
+    wrap.innerHTML = transfers.map(t => `
+      <div class="transfer" data-testid="transfer-${t.from}-${t.to}">
+        <div class="who"><span>${t.from}</span><span class="arrow">→</span><span>${t.to}</span></div>
+        <div class="amount">${fmt(t.amount)}</div>
+      </div>`).join('');
+  }
+
+  // Chart instances kept module-level so we can destroy/replace on refresh.
+  let chartTrend = null, chartNet = null;
+
+  /**
+   * Build / refresh the two Chart.js charts:
+   * 1) daily debit trend (line), 2) per-member net balance (horizontal bar).
+   * @returns {void}
+   */
+  function renderCharts(){
+    if (typeof Chart === 'undefined') return;
+
+    // 1) Daily debit trend
+    const byDay = new Map();
+    allRows.forEach(r => {
+      if (!r.dateObj) return;
+      const k = r.monthKey + '-' + String(r.dateObj.getDate()).padStart(2,'0');
+      byDay.set(k, (byDay.get(k) || 0) + r.totD);
+    });
+    const trendKeys = [...byDay.keys()].sort();
+    const trendLabels = trendKeys.map(k => {
+      const [y, m, d] = k.split('-');
+      return new Date(+y, +m-1, +d).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    });
+    const trendData = trendKeys.map(k => byDay.get(k));
+
+    const trendCtx = document.getElementById('chart-trend').getContext('2d');
+    if (chartTrend) chartTrend.destroy();
+    chartTrend = new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels: trendLabels,
+        datasets: [{
+          label: 'Debit', data: trendData,
+          borderColor: '#c64a1f', backgroundColor: 'rgba(198,74,31,0.12)',
+          fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor: '#c64a1f', borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#5a5345', font: { family: 'JetBrains Mono', size: 10 } } },
+          y: { grid: { color: '#e6e0d4' }, ticks: { color: '#5a5345', font: { family: 'JetBrains Mono', size: 10 } } },
+        }
+      }
+    });
+
+    // 2) Per-member net balance
+    const labels = MEMBERS;
+    const data = MEMBERS.map(m => perMember[m].net);
+    const colors = data.map(v => v >= 0 ? '#2f5d3a' : '#a3422c');
+
+    const netCtx = document.getElementById('chart-net').getContext('2d');
+    if (chartNet) chartNet.destroy();
+    chartNet = new Chart(netCtx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 4 }] },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#e6e0d4' }, ticks: { color: '#5a5345', font: { family: 'JetBrains Mono', size: 10 } } },
+          y: { grid: { display: false }, ticks: { color: '#1c1a15', font: { family: 'JetBrains Mono', size: 11 } } },
+        }
+      }
+    });
+  }
+
+  /**
+   * Build a CSV string from the currently-filtered rows
+   * and trigger a browser download.
+   * @returns {void}
+   */
+  function exportFilteredCSV(){
+    const rows = getFilteredRows();
+    const memberSel = document.getElementById('member-filter').value;
+    const headers = ['Sr No.', 'Date', 'Item Name', 'Item Description',
+      memberSel ? `${memberSel}-Credit` : 'Total Credit',
+      memberSel ? `${memberSel}-Debit`  : 'Total Debit'];
+    const escapeCell = v => {
+      const s = (v == null ? '' : String(v));
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [headers.map(escapeCell).join(',')];
+    rows.forEach(r => {
+      lines.push([r.sr, r.date, r.item, r.desc, r._credit, r._debit].map(escapeCell).join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,10);
+    a.href = url; a.download = `expense-ledger-${stamp}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ----- Table -----
+  const COLS = [
+    { key:'sr',    label:'#',           render:r => r.sr,        sortVal:r => parseInt(r.sr)||0 },
+    { key:'date',  label:'Date',        render:r => `<span class="date">${r.date||'—'}</span>`, sortVal:r => r.date },
+    { key:'item',  label:'Item',        render:r => `<span class="item">${esc(r.item)||'—'}</span>`, sortVal:r => r.item.toLowerCase() },
+    { key:'desc',  label:'Description', render:r => `<span class="desc">${esc(r.desc)||'—'}</span>`, sortVal:r => r.desc.toLowerCase() },
+    { key:'credit',label:'Credit',      render:r => `<span class="num pos">${r._credit?fmtPlain(r._credit):'—'}</span>`, sortVal:r => r._credit, num:true },
+    { key:'debit', label:'Debit',       render:r => `<span class="num neg">${r._debit?fmtPlain(r._debit):'—'}</span>`,  sortVal:r => r._debit,  num:true },
+  ];
+
+  /**
+   * HTML-escape a string before injecting into innerHTML.
+   * @param {*} s
+   * @returns {string}
+   */
+  function esc(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  /**
+   * Apply current search / member / type filters and active sort
+   * to `allRows` and return the prepared rows for rendering.
+   * Each returned row is enriched with `_credit` and `_debit`
+   * representing either the chosen member's values or the row totals.
+   * @returns {Array<object>}
+   */
+  function getFilteredRows(){
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    const m = document.getElementById('member-filter').value;
+    const t = document.getElementById('type-filter').value;
+    const mo = document.getElementById('month-filter').value;
+
+    let rows = allRows.map(r => {
+      let credit, debit;
+      if (m){ credit = r.members[m].credit; debit = r.members[m].debit; }
+      else { credit = r.totC; debit = r.totD; }
+      return { ...r, _credit: credit, _debit: debit };
+    });
+
+    if (mo) rows = rows.filter(r => r.monthKey === mo);
+    if (m) rows = rows.filter(r => r._credit > 0 || r._debit > 0);
+    if (t === 'credit') rows = rows.filter(r => r._credit > 0);
+    if (t === 'debit')  rows = rows.filter(r => r._debit > 0);
+    if (q) rows = rows.filter(r =>
+      (r.item && r.item.toLowerCase().includes(q)) ||
+      (r.desc && r.desc.toLowerCase().includes(q)) ||
+      (r.date && r.date.toLowerCase().includes(q))
+    );
+
+    const colDef = COLS.find(c => c.key === sortKey);
+    if (colDef){
+      rows.sort((a,b) => {
+        const av = colDef.sortVal(a), bv = colDef.sortVal(b);
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ?  1 : -1;
+        return 0;
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Re-render the transactions table head + body using current
+   * filters, sort and (optionally selected) member view.
+   * @returns {void}
+   */
+  function renderTable(){
+    const head = document.getElementById('table-head');
+    head.innerHTML = COLS.map(c => {
+      const active = c.key === sortKey;
+      const arrow = active ? (sortDir === 'asc' ? '▲' : '▼') : '↕';
+      const align = c.num ? 'style="text-align:right"' : '';
+      return `<th data-key="${c.key}" class="${active?'active':''}" ${align} data-testid="col-${c.key}">${c.label}<span class="sort">${arrow}</span></th>`;
+    }).join('');
+    head.querySelectorAll('th').forEach(th => {
+      th.addEventListener('click', () => {
+        const k = th.dataset.key;
+        if (sortKey === k) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        else { sortKey = k; sortDir = 'asc'; }
+        renderTable();
+      });
+    });
+
+    const rows = getFilteredRows();
+    const body = document.getElementById('table-body');
+    document.getElementById('empty-state').style.display = rows.length ? 'none' : 'block';
+    document.getElementById('result-count').textContent = `${rows.length} row${rows.length===1?'':'s'}`;
+
+    body.innerHTML = rows.map(r => `
+      <tr data-testid="txn-row-${r.sr}">
+        ${COLS.map(c => {
+          const align = c.num ? 'class="num ' + (c.key==='credit'?'pos':c.key==='debit'?'neg':'') + '"' : '';
+          return `<td ${align}>${c.render(r)}</td>`;
+        }).join('')}
+      </tr>
+    `).join('');
+  }
+
+  // ----- Listeners -----
+  document.getElementById('search').addEventListener('input', renderTable);
+  document.getElementById('member-filter').addEventListener('change', renderTable);
+  document.getElementById('type-filter').addEventListener('change', renderTable);
+  document.getElementById('month-filter').addEventListener('change', renderTable);
+  document.getElementById('export-btn').addEventListener('click', exportFilteredCSV);
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    document.getElementById('search').value = '';
+    document.getElementById('member-filter').value = '';
+    document.getElementById('type-filter').value = '';
+    document.getElementById('month-filter').value = '';
+    sortKey = 'sr'; sortDir = 'asc';
+    renderTable();
+  });
+
+  // ----- Boot -----
+  load();
+  setInterval(load, REFRESH_MS);
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"7f7b0fd8732c4326aae4b9d58d5c514a","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
