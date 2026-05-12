@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# npm
+npm-debug.log*
+
+# Build outputs (excluding analytics.bundle.js which is needed for deployment)
+*.log
+
+# Note: package-lock.json is committed to ensure consistent dependency resolution
