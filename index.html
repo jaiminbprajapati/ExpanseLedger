@@ -1158,7 +1158,7 @@
     try {
       const res = await fetch(appsScriptUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: sr ? 'edit' : 'add',
           secret: appsScriptSecret,
@@ -1182,7 +1182,7 @@
       try {
         const res = await fetch(appsScriptUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({ action: 'delete', secret: appsScriptSecret, sr })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
