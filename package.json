@@ -1,0 +1,27 @@
+{
+  "name": "expanse-ledger",
+  "version": "1.0.0",
+  "description": "Expense Ledger — Live from Google Sheets",
+  "type": "module",
+  "scripts": {
+    "build:analytics": "node build-analytics.js",
+    "postinstall": "npm run build:analytics"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaiminbprajapati/ExpanseLedger.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jaiminbprajapati/ExpanseLedger/issues"
+  },
+  "homepage": "https://github.com/jaiminbprajapati/ExpanseLedger#readme",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.2"
+  }
+}
