@@ -387,7 +387,7 @@
   <section class="fade-in d3">
     <div class="sec-head">
       <h2>Member <em style="font-style:italic;color:var(--accent)">balances</em></h2>
-      <div class="meta">X1 — X15 · net = credit − debit</div>
+      <div class="meta">net = credit − debit</div>
     </div>
     <div class="people" id="people-grid" data-testid="people-grid"></div>
   </section>
@@ -568,7 +568,7 @@
   const GID = '1298292385';
   const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
   const REFRESH_MS = 60000;
-  const MEMBERS = Array.from({length:15}, (_,i)=>`X${i+1}`);
+  let MEMBERS = []; // This will be populated dynamically from CSV header
 
   // ----- State -----
   let allRows = [];           // all entries from sheet (only those with date or item)
@@ -697,11 +697,20 @@
     if (!rows.length) return;
     const header = rows[0];
     const col = name => header.indexOf(name);
-    const data = keepNonEmpty(rows.slice(1));
+    // Dynamically determine MEMBERS from the CSV header
+    const extractedMembers = new Set();
+    for (const h of header) {
+      if (h.endsWith('-Credit')) {
+        extractedMembers.add(h.replace('-Credit', ''));
+      }
+    }
+    MEMBERS = Array.from(extractedMembers).sort(); // Sort for consistent order
+
+    const data = keepNonEmpty(rows.slice(1)); // All rows after header
 
     resetAggregates();
     data.forEach(r => allRows.push(parseRow(r, col)));
-    MEMBERS.forEach(m => perMember[m].net = perMember[m].credit - perMember[m].debit);
+    MEMBERS.forEach(m => perMember[m].net = perMember[m].credit - perMember[m].debit); // Recalculate net balances for dynamic members
 
     renderStats();
     renderPeople();
